@@ -38,12 +38,80 @@ class MyersDiff {
 	const INSERT = 1;
 
 	/**
-	 * When one of the sequences is empty, there is no
+	 * When one of the sequences is empty, we just insert/delete the other.
+	 *
+	 * @param string[] $x
+	 * @param int      $action
 	 */
 	private function degenerateCase(array $x, $action) {
 		$solution = array();
 		foreach ($x as $token) {
 			$solution[] = array($token, $action);
+		}
+
+		return $solution;
+	}
+
+	/**
+	 * Backtrack through the intermediate results to extract the "snakes" that
+	 * are visited on the chosen "D-path".
+	 *
+	 * @param string[] $v_save Intermediate results
+	 * @param int      $x      End position
+	 * @param int      $y      End position
+	 *
+	 * @return array
+	 */
+	private function extractSnakes(array $v_save, $x, $y) {
+		$snakes = array();
+		for ($d = count($v_save) - 1; $x > 0 && $y > 0; --$d) {
+			array_unshift($snakes, array($x, $y));
+
+			$v = $v_save[$d];
+			$k = $x - $y;
+
+			if ($k === -$d || $k !== $d && $v[$k - 1] < $v[$k + 1]) {
+				$k_prev = $k + 1;
+			} else {
+				$k_prev = $k - 1;
+			}
+
+			$x = $v[$k_prev];
+			$y = $x - $k_prev;
+		}
+
+		return $snakes;
+	}
+
+	/**
+	 * Convert a list of "snakes" into a set of insert/keep/delete instructions
+	 *
+	 * @param integer[][] $snakes Common subsequences
+	 * @param string[]    $a      First sequence
+	 * @param string[]    $b      Second sequence
+	 *
+	 */
+	private function formatSolution(array $snakes, array $a, array $b) {
+		$solution = array();
+		$x = 0;
+		$y = 0;
+		foreach ($snakes as $snake) {
+			// Horizontals
+			while ($snake[0] - $snake[1] > $x - $y) {
+				++$x;
+				$solution[] = array($a[$x], self::DELETE);
+			}
+			// Verticals
+			while ($snake[0] - $snake[1] < $x - $y) {
+				++$y;
+				$solution[] = array($b[$y], self::INSERT);
+			}
+			// Diagonals
+			while ($x < $snake[0]) {
+				++$x;
+				++$y;
+				$solution[] = array($a[$x], self::KEEP);
+			}
 		}
 
 		return $solution;
@@ -106,48 +174,9 @@ class MyersDiff {
 		}
 
 		// Extract the solution by back-tracking through the saved results.
-		$x = $n;
-		$y = $m;
-		$snakes = array();
-		for ($d = count($v_save) - 1; $x > 0 && $y > 0; --$d) {
-			array_unshift($snakes, array($x, $y));
+		$snakes = $this->extractSnakes($v_save, $n, $m);
 
-			$v = $v_save[$d];
-			$k = $x - $y;
-
-			if ($k === -$d || $k !== $d && $v[$k - 1] < $v[$k + 1]) {
-				$k_prev = $k + 1;
-			} else {
-				$k_prev = $k - 1;
-			}
-
-			$x = $v[$k_prev];
-			$y = $x - $k_prev;
-		}
-
-		// Extract the solution from the snake endpoints
-		$solution = array();
-		$x = 0;
-		$y = 0;
-		foreach ($snakes as $snake) {
-			// Horizontals
-			while ($snake[0] - $snake[1] > $x - $y) {
-				++$x;
-				$solution[] = array($a[$x], self::DELETE);
-			}
-			// Verticals
-			while ($snake[0] - $snake[1] < $x - $y) {
-				++$y;
-				$solution[] = array($b[$y], self::INSERT);
-			}
-			// Diagonals
-			while ($x < $snake[0]) {
-				++$x;
-				++$y;
-				$solution[] = array($a[$x], self::KEEP);
-			}
-		}
-
-		return $solution;
+		// Format the snakes as a set of instructions.
+		return $this->formatSolution($snakes, $a, $b);
 	}
 }
